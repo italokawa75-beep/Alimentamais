@@ -104,6 +104,32 @@ export default function DashboardPage() {
     }
   }, [role, currentView])
 
+  // 🚀 SUPABASE REALTIME: Atualização instantânea do Feed
+  useEffect(() => {
+    if (role === 'orfanato' && currentView === 'home') {
+      const channel = supabase
+        .channel('doacoes-realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Escuta INSERT, UPDATE e DELETE em qualquer doação
+            schema: 'public',
+            table: 'doacoes'
+          },
+          () => {
+            // Recarrega as doações automaticamente quando houver qualquer mudança no banco
+            fetchDonations()
+          }
+        )
+        .subscribe()
+
+      // Limpa a conexão quando o usuário sair da tela ou deslogar
+      return () => {
+        supabase.removeChannel(channel)
+      }
+    }
+  }, [role, currentView, supabase])
+
   async function checkUser() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
@@ -309,12 +335,10 @@ export default function DashboardPage() {
   
   let totalUnits = 0
   completedForImpact.forEach((d: any) => {
-    // Extrai o primeiro número encontrado na string de quantidade (ex: "15 marmitas" -> 15)
     const match = d.quantidade?.toString().match(/\d+/)
-    totalUnits += match ? parseInt(match[0], 10) : 1 // Se não tiver número, conta como 1
+    totalUnits += match ? parseInt(match[0], 10) : 1
   })
   
-  // Estimativa: 1 unidade/refeição ≈ 0.5kg de alimento salvo
   const kgSaved = (totalUnits * 0.5).toFixed(1)
 
   return (
@@ -636,7 +660,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* 🌟 NOVA SEÇÃO: CALCULADORA DE IMPACTO SOCIAL (ODS 2 e 12) */}
               <div className={`p-5 rounded-2xl border-2 ${isDark ? 'bg-gradient-to-br from-purple-950/50 to-gray-900 border-purple-800' : 'bg-gradient-to-br from-purple-50 to-white border-purple-200'}`}>
                 <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDark ? 'text-purple-300' : 'text-purple-700'}`}>
                   <Leaf className="w-5 h-5" />
@@ -1335,7 +1358,7 @@ export default function DashboardPage() {
               </div>
             </div>
           </>
-        )}
+        )}s
       </div>
     </div>
   )
