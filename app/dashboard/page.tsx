@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import Toast from '@/components/Toast'
 import SkeletonCard from '@/components/SkeletonCard'
-import { Menu, Bell, Leaf, LogOut, AlertCircle, Clock, Utensils, CupSoda, Cake, Apple, Info, Shield, Code, X, HelpCircle, BookOpen, AlertTriangle, MessageCircle, CheckCircle2, Search, BarChart3, Package, Sun, Moon } from 'lucide-react'
+import { Menu, Bell, Leaf, LogOut, AlertCircle, Clock, Utensils, CupSoda, Cake, Apple, Info, Shield, Code, X, HelpCircle, BookOpen, AlertTriangle, MessageCircle, CheckCircle2, Search, BarChart3, Package, Sun, Moon, Users, Weight } from 'lucide-react'
 
 export default function DashboardPage() {
   const [role, setRole] = useState<string | null>(null)
@@ -132,7 +132,6 @@ export default function DashboardPage() {
     }
   }
   
-  // CORREÇÃO DE FUSO HORÁRIO: Filtragem no frontend respeitando o relógio local
   async function fetchMyReservations() { 
     const { data: { user } } = await supabase.auth.getUser()
     const { data } = await supabase
@@ -149,7 +148,6 @@ export default function DashboardPage() {
     }
   }
 
-  // CORREÇÃO DE FUSO HORÁRIO: Filtragem no frontend respeitando o relógio local
   async function fetchExpiredReservations() {
     const { data: { user } } = await supabase.auth.getUser()
     const { data } = await supabase
@@ -304,6 +302,20 @@ export default function DashboardPage() {
     const matchesCategory = selectedCategory === 'todos' || doacao.categoria === selectedCategory
     return matchesSearch && matchesCategory
   })
+
+  // 🌟 LÓGICA DA CALCULADORA DE IMPACTO AUTOMÁTICO
+  const completedForImpact = activityData.filter((d: any) => d.status === 'retirado')
+  const uniqueOrphanages = new Set(completedForImpact.map((d: any) => d.orfanato_id).filter(Boolean))
+  
+  let totalUnits = 0
+  completedForImpact.forEach((d: any) => {
+    // Extrai o primeiro número encontrado na string de quantidade (ex: "15 marmitas" -> 15)
+    const match = d.quantidade?.toString().match(/\d+/)
+    totalUnits += match ? parseInt(match[0], 10) : 1 // Se não tiver número, conta como 1
+  })
+  
+  // Estimativa: 1 unidade/refeição ≈ 0.5kg de alimento salvo
+  const kgSaved = (totalUnits * 0.5).toFixed(1)
 
   return (
     <div className={`${theme === 'dark' ? 'dark' : ''}`}>
@@ -620,8 +632,50 @@ export default function DashboardPage() {
                 <BarChart3 className={`w-8 h-8 ${isDark ? 'text-purple-400' : 'text-purple-600'}`} />
                 <div>
                   <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Relatório de Atividade</h2>
-                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Acompanhe o impacto das suas doações</p>
+                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Acompanhe o impacto real das suas doações</p>
                 </div>
+              </div>
+
+              {/* 🌟 NOVA SEÇÃO: CALCULADORA DE IMPACTO SOCIAL (ODS 2 e 12) */}
+              <div className={`p-5 rounded-2xl border-2 ${isDark ? 'bg-gradient-to-br from-purple-950/50 to-gray-900 border-purple-800' : 'bg-gradient-to-br from-purple-50 to-white border-purple-200'}`}>
+                <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDark ? 'text-purple-300' : 'text-purple-700'}`}>
+                  <Leaf className="w-5 h-5" />
+                  Seu Impacto Social Gerado
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className={`p-4 rounded-xl flex items-center gap-4 ${isDark ? 'bg-gray-800/50' : 'bg-white shadow-sm'}`}>
+                    <div className={`p-3 rounded-full ${isDark ? 'bg-purple-900' : 'bg-purple-100'}`}>
+                      <Utensils className={`w-6 h-6 ${isDark ? 'text-purple-300' : 'text-purple-600'}`} />
+                    </div>
+                    <div>
+                      <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{totalUnits}</p>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Refeições Servidas</p>
+                    </div>
+                  </div>
+
+                  <div className={`p-4 rounded-xl flex items-center gap-4 ${isDark ? 'bg-gray-800/50' : 'bg-white shadow-sm'}`}>
+                    <div className={`p-3 rounded-full ${isDark ? 'bg-green-900' : 'bg-green-100'}`}>
+                      <Weight className={`w-6 h-6 ${isDark ? 'text-green-300' : 'text-green-600'}`} />
+                    </div>
+                    <div>
+                      <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{kgSaved} kg</p>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Alimentos Salvos do Lixo</p>
+                    </div>
+                  </div>
+
+                  <div className={`p-4 rounded-xl flex items-center gap-4 ${isDark ? 'bg-gray-800/50' : 'bg-white shadow-sm'}`}>
+                    <div className={`p-3 rounded-full ${isDark ? 'bg-blue-900' : 'bg-blue-100'}`}>
+                      <Users className={`w-6 h-6 ${isDark ? 'text-blue-300' : 'text-blue-600'}`} />
+                    </div>
+                    <div>
+                      <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{uniqueOrphanages.size}</p>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Orfanatos Impactados</p>
+                    </div>
+                  </div>
+                </div>
+                <p className={`text-xs mt-3 text-center italic ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  * Estimativa baseada em uma média de 0,5kg por unidade doada.
+                </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -639,7 +693,7 @@ export default function DashboardPage() {
                     <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Retiradas com Sucesso</span>
                     <CheckCircle2 className="w-5 h-5 text-green-400" />
                   </div>
-                  <p className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{activityData.filter((d: any) => d.status === 'retirado').length}</p>
+                  <p className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{completedForImpact.length}</p>
                   <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Alimentos entregues</p>
                 </div>
 
@@ -649,7 +703,7 @@ export default function DashboardPage() {
                     <AlertCircle className="w-5 h-5 text-yellow-400" />
                   </div>
                   <p className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {activityData.length > 0 ? Math.round((activityData.filter((d: any) => d.status === 'retirado').length / activityData.length) * 100) : 0}%
+                    {activityData.length > 0 ? Math.round((completedForImpact.length / activityData.length) * 100) : 0}%
                   </p>
                   <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Eficiência das doações</p>
                 </div>
@@ -693,37 +747,6 @@ export default function DashboardPage() {
                     )
                   })}
                 </div>
-              </div>
-
-              <div className={`rounded-xl shadow p-5 border transition-colors ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
-                <h3 className={`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Últimas Doações Cadastradas</h3>
-                {activityData.slice(0, 5).length === 0 ? (
-                  <p className={`text-sm text-center py-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Nenhuma doação cadastrada ainda.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {activityData.slice(0, 5).map((item: any) => (
-                      <div key={item.id} className={`flex items-center justify-between p-3 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDark ? 'bg-purple-950' : 'bg-purple-100'}`}>
-                            <Package className={`w-5 h-5 ${isDark ? 'text-purple-400' : 'text-purple-600'}`} />
-                          </div>
-                          <div>
-                            <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.titulo}</p>
-                            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{new Date(item.created_at).toLocaleDateString('pt-BR')}</p>
-                          </div>
-                        </div>
-                        <span className={`text-xs font-bold px-2 py-1 rounded ${
-                          item.status === 'disponivel' ? (isDark ? 'bg-green-950 text-green-400' : 'bg-green-100 text-green-700') : 
-                          item.status === 'reservado' ? (isDark ? 'bg-yellow-950 text-yellow-400' : 'bg-yellow-100 text-yellow-700') : 
-                          item.status === 'retirado' ? (isDark ? 'bg-purple-950 text-purple-400' : 'bg-purple-100 text-purple-700') :
-                          (isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600')
-                        }`}>
-                          {item.status.toUpperCase()}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
 
               <div className={`rounded-xl shadow p-5 border transition-colors ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
