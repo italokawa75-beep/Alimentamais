@@ -1,6 +1,6 @@
 'use client'
 
-import { Home, Package, Settings, UtensilsCrossed, ShoppingCart, Clock, BarChart3 } from 'lucide-react'
+import { Home, Package, Settings, UtensilsCrossed, ShoppingCart, Clock, BarChart3, Users, Bell } from 'lucide-react'
 
 interface SidebarProps {
   isOpen: boolean
@@ -11,21 +11,24 @@ interface SidebarProps {
   onNavigate: (view: string) => void
   onLogout: () => void
   theme: 'light' | 'dark'
+  pendingCount?: number
 }
 
-export default function Sidebar({ isOpen, onClose, userName, role, currentView, onNavigate, onLogout, theme }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, userName, role, currentView, onNavigate, onLogout, theme, pendingCount = 0 }: SidebarProps) {
   const isDark = theme === 'dark'
   
-  const menuItems = role === 'estabelecimento' 
+  const menuItems: any[] = role === 'estabelecimento' 
     ? [
         { id: 'home', label: 'Início', icon: Home },
         { id: 'history', label: 'Minhas Doações', icon: Package },
         { id: 'report', label: 'Relatório', icon: BarChart3 },
+        { id: 'partners', label: 'Meus Parceiros', icon: Users },
         { id: 'settings', label: 'Configurações', icon: Settings },
       ]
     : [
         { id: 'home', label: 'Feed de Doações', icon: UtensilsCrossed },
         { id: 'history', label: 'Minhas Reservas', icon: ShoppingCart },
+        { id: 'requests', label: 'Solicitações', icon: Bell, badge: pendingCount },
         { id: 'expired', label: 'Histórico de Expirados', icon: Clock },
         { id: 'settings', label: 'Configurações', icon: Settings },
       ]
@@ -58,6 +61,7 @@ export default function Sidebar({ isOpen, onClose, userName, role, currentView, 
         <nav className="p-4 space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon
+            const hasBadge = item.badge > 0
             return (
               <button
                 key={item.id}
@@ -73,7 +77,12 @@ export default function Sidebar({ isOpen, onClose, userName, role, currentView, 
                 }`}
               >
                 <Icon className="w-5 h-5" />
-                <span>{item.label}</span>
+                <span className="flex-1">{item.label}</span>
+                {hasBadge && (
+                  <span className="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse shadow-md">
+                    {item.badge}
+                  </span>
+                )}
               </button>
             )
           })}

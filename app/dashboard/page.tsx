@@ -41,6 +41,13 @@ export default function DashboardPage() {
   const [activityData, setActivityData] = useState<any[]>([])
   const [completedDonations, setCompletedDonations] = useState<any[]>([])
   
+  // --- NOVOS ESTADOS: SISTEMA DE PARCEIROS ---
+  const [showPartnerModal, setShowPartnerModal] = useState(false)
+  const [partnerEmail, setPartnerEmail] = useState('')
+  const [partnerMessage, setPartnerMessage] = useState('')
+  const [pendingInvites, setPendingInvites] = useState<any[]>([])
+  const [myPartners, setMyPartners] = useState<any[]>([])
+  
   const [titulo, setTitulo] = useState('')
   const [quantidade, setQuantidade] = useState('')
   const [validade, setValidade] = useState('')
@@ -100,6 +107,10 @@ export default function DashboardPage() {
       if (currentView === 'report' && role === 'estabelecimento') {
         fetchActivityData()
       }
+      // NOVAS CHAMADAS PARA AS TELAS DE PARCEIROS
+      if (currentView === 'partners' && role === 'estabelecimento') fetchMyPartners()
+      if (currentView === 'requests' && role === 'orfanato') fetchPendingInvites()
+      
       fetchNotifications()
     }
   }, [role, currentView])
@@ -112,18 +123,16 @@ export default function DashboardPage() {
         .on(
           'postgres_changes',
           {
-            event: '*', // Escuta INSERT, UPDATE e DELETE em qualquer doação
+            event: '*',
             schema: 'public',
             table: 'doacoes'
           },
           () => {
-            // Recarrega as doações automaticamente quando houver qualquer mudança no banco
             fetchDonations()
           }
         )
         .subscribe()
 
-      // Limpa a conexão quando o usuário sair da tela ou deslogar
       return () => {
         supabase.removeChannel(channel)
       }
@@ -214,6 +223,85 @@ export default function DashboardPage() {
       setActivityData(allDonations)
       const completed = allDonations.filter((d: any) => d.status === 'retirado')
       setCompletedDonations(completed.slice(0, 5))
+    }
+  }
+
+  // --- FUNÇÕES: SISTEMA DE PARCEIROS ---
+  async function fetchPendingInvites() {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase
+      .from('conexoes')
+      .select('*, profiles!conexoes_estabelecimento_id_fkey(nome, email)')
+      .eq('orfanato_id', user?.id)
+      .eq('status', 'pendente')
+    if (data) setPendingInvites(data)
+  }
+
+  async function fetchMyPartners() {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase
+      .from('conexoes')
+      .select('*, profiles!conexoes_orfanato_id_fkey(nome, email)')
+      .eq('estabelecimento_id', user?.id)
+      .eq('status', 'ativo')
+    if (data) setMyPartners(data)
+  }
+
+  async function handleInvitePartner() {
+    const { data: { user } } = await supabase.auth.getUser()
+    setPartnerMessage('')
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .eq('email', partnerEmail)
+      .single()
+
+    if (profileError || !profile) {
+      setPartnerMessage('❌ Orfanato não encontrado com este e-mail.')
+      return
+    }
+
+    if (profile.role !== 'orfanato') {
+      setPartnerMessage('❌ Este e-mail não pertence a um Orfanato.')
+      return
+    }
+
+    const { error } = await supabase
+      .from('conexoes')
+      .insert({ estabelecimento_id: user?.id, orfanato_id: profile.id, status: 'pendente' })
+
+    if (error) {
+      if (error.code === '23505') setPartnerMessage('⚠️ Você já enviou um convite para este orfanato.')
+      else setPartnerMessage('❌ Erro ao enviar convite.')
+    } else {
+      setPartnerMessage('✅ Convite enviado com sucesso!')
+      setPartnerEmail('')
+    }
+  }
+
+  async function handleAcceptInvite(conexaoId: string) {
+    const { error } = await supabase
+      .from('conexoes')
+      .update({ status: 'ativo' })
+      .eq('id', conexaoId)
+
+    if (!error) {
+      showToast('Parceiro conectado com sucesso!', 'success')
+      fetchPendingInvites()
+      fetchMyPartners()
+    }
+  }
+
+  async function handleRejectInvite(conexaoId: string) {
+    const { error } = await supabase
+      .from('conexoes')
+      .update({ status: 'rejeitado' })
+      .eq('id', conexaoId)
+
+    if (!error) {
+      showToast('Convite recusado.', 'info')
+      fetchPendingInvites()
     }
   }
 
@@ -346,7 +434,17 @@ export default function DashboardPage() {
       <div className={`min-h-screen relative transition-all duration-300 ${isDark ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'} ${fontSize === 'P' ? 'text-[14px]' : fontSize === 'M' ? 'text-[16px]' : 'text-[18px]'}`}>
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         
-        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} userName={userName} role={role} currentView={currentView} onNavigate={setCurrentView} onLogout={handleLogout} theme={theme} />
+        <Sidebar 
+          isOpen={sidebarOpen} 
+          onClose={() => setSidebarOpen(false)} 
+          userName={userName} 
+          role={role} 
+          currentView={currentView} 
+          onNavigate={setCurrentView} 
+          onLogout={handleLogout} 
+          theme={theme}
+          pendingCount={pendingInvites.length} 
+        />
 
         <header className={`shadow-sm sticky top-0 z-30 px-4 py-3 flex justify-between items-center border-b transition-colors ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
           <button onClick={() => setSidebarOpen(true)} className={`transition p-2 rounded-lg ${isDark ? 'text-gray-300 hover:text-purple-400 hover:bg-gray-800' : 'text-gray-600 hover:text-purple-600 hover:bg-gray-100'}`}>
@@ -792,6 +890,87 @@ export default function DashboardPage() {
                         <span className={`text-xs font-bold px-2 py-1 rounded ${isDark ? 'bg-green-950 text-green-400' : 'bg-green-100 text-green-700'}`}>
                           ✅ ENTREGUE
                         </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* --- NOVA VIEW: MEUS PARCEIROS (ESTABELECIMENTO) --- */}
+          {currentView === 'partners' && role === 'estabelecimento' && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Meus Parceiros</h2>
+                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Conecte-se com orfanatos para doações prioritárias</p>
+                </div>
+                <button 
+                  onClick={() => setShowPartnerModal(true)}
+                  className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-purple-700 transition flex items-center gap-2"
+                >
+                  <Users className="w-4 h-4" /> Conectar Orfanato
+                </button>
+              </div>
+
+              <div className={`rounded-2xl shadow p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
+                <h3 className={`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Orfanatos Conectados</h3>
+                {myPartners.length === 0 ? (
+                  <p className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Nenhum parceiro conectado ainda.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {myPartners.map((partner: any) => (
+                      <div key={partner.id} className={`flex items-center justify-between p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-purple-900' : 'bg-purple-100'}`}>
+                            <span className="text-purple-400 font-bold">{partner.profiles?.nome?.charAt(0) || 'O'}</span>
+                          </div>
+                          <div>
+                            <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{partner.profiles?.nome}</p>
+                            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{partner.profiles?.email}</p>
+                          </div>
+                        </div>
+                        <span className="text-xs font-bold px-3 py-1 rounded-full bg-green-900 text-green-400 border border-green-800">
+                          ✅ Conectado
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* --- NOVA VIEW: SOLICITAÇÕES (ORFANATO) --- */}
+          {currentView === 'requests' && role === 'orfanato' && (
+            <div className="space-y-6 animate-fade-in">
+              <div>
+                <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Solicitações de Parceria</h2>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Estabelecimentos que querem se conectar com você</p>
+              </div>
+
+              <div className={`rounded-2xl shadow p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
+                <h3 className={`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Pendentes</h3>
+                {pendingInvites.length === 0 ? (
+                  <p className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Nenhuma solicitação pendente.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {pendingInvites.map((invite: any) => (
+                      <div key={invite.id} className={`flex items-center justify-between p-4 rounded-lg border-l-4 border-yellow-500 ${isDark ? 'bg-gray-800' : 'bg-yellow-50'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-yellow-900' : 'bg-yellow-200'}`}>
+                            <span className="text-yellow-500 font-bold">🏪</span>
+                          </div>
+                          <div>
+                            <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{invite.profiles?.nome}</p>
+                            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{invite.profiles?.email}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => handleRejectInvite(invite.id)} className="px-3 py-1 rounded-lg bg-red-900 text-red-400 text-sm font-semibold hover:bg-red-800 transition">Recusar</button>
+                          <button onClick={() => handleAcceptInvite(invite.id)} className="px-3 py-1 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition">Aceitar</button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1358,7 +1537,51 @@ export default function DashboardPage() {
               </div>
             </div>
           </>
-        )}s
+        )}
+
+        {/* --- NOVO MODAL: CONECTAR PARCEIRO --- */}
+        {showPartnerModal && (
+          <>
+            <div className="fixed inset-0 bg-black bg-opacity-70 z-50" onClick={() => { setShowPartnerModal(false); setPartnerMessage(''); }} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+              <div className={`rounded-2xl shadow-2xl border max-w-md w-full pointer-events-auto animate-slide-down ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
+                <div className="bg-gradient-to-r from-purple-700 to-purple-900 p-6 rounded-t-2xl relative">
+                  <button onClick={() => { setShowPartnerModal(false); setPartnerMessage(''); }} className="absolute top-4 right-4 text-white hover:text-purple-200 transition p-1 rounded-lg hover:bg-white/10">
+                    <X className="w-6 h-6" />
+                  </button>
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Users className="w-6 h-6" /> Conectar Orfanato
+                  </h2>
+                </div>
+                <div className="p-6 space-y-4">
+                  <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Digite o e-mail cadastrado do Orfanato para enviar um convite de parceria.
+                  </p>
+                  <input 
+                    type="email" 
+                    value={partnerEmail}
+                    onChange={(e) => setPartnerEmail(e.target.value)}
+                    placeholder="orfanato@exemplo.com"
+                    className={`w-full p-3 rounded-lg border outline-none focus:ring-2 focus:ring-purple-500 ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
+                  />
+                  {partnerMessage && (
+                    <p className={`text-sm font-semibold ${partnerMessage.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>
+                      {partnerMessage}
+                    </p>
+                  )}
+                  <button 
+                    onClick={handleInvitePartner}
+                    disabled={!partnerEmail}
+                    className="w-full bg-purple-600 text-white py-3 rounded-lg font-bold hover:bg-purple-700 transition disabled:opacity-50"
+                  >
+                    Enviar Convite
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
       </div>
     </div>
   )
