@@ -499,10 +499,10 @@ export default function DashboardPage() {
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
                   <div className={`absolute right-0 mt-2 w-80 rounded-xl shadow-2xl border z-50 overflow-hidden animate-slide-down ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
-                    <div className="bg-gradient-to-r from-purple-700 to-purple-900 p-4 text-white">
+                    <div className="bg-gradient-to-r from-purple-700 to-purple-900 p-4 text-black">
                       <div className="flex justify-between items-center">
                         <h4 className="font-bold text-lg">Notificações</h4>
-                        <span className="bg-white bg-opacity-20 text-xs px-2 py-1 rounded-full">{unreadCount} nova{unreadCount !== 1 ? 's' : ''}</span>
+                        <span className="bg-black bg-opacity-90 text-xs px-2 py-1 rounded-full">{unreadCount} nova{unreadCount !== 1 ? 's' : ''}</span>
                       </div>
                     </div>
                     <div className="max-h-96 overflow-y-auto">
