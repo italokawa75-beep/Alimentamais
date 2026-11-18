@@ -307,15 +307,45 @@ export default function DashboardPage() {
 
   async function handleLogout() { await supabase.auth.signOut(); router.push('/login') }
 
-  async function handleCreateDonation(e: React.FormEvent) {
+    async function handleCreateDonation(e: React.FormEvent) {
     e.preventDefault()
     const { data: { user } } = await supabase.auth.getUser()
-    const { error } = await supabase.from('doacoes').insert({ estabelecimento_id: user?.id, titulo, quantidade, validade, descricao, categoria, status: 'disponivel' })
+    
+    // 1. Cadastra a doação normalmente
+    const { error } = await supabase.from('doacoes').insert({ 
+      estabelecimento_id: user?.id, 
+      titulo, 
+      quantidade, 
+      validade, 
+      descricao, 
+      categoria, 
+      status: 'disponivel' 
+    })
+    
     if (!error) {
       showToast(language === 'pt' ? 'Doação cadastrada com sucesso!' : 'Donation registered successfully!', 'success')
       setTitulo(''); setQuantidade(''); setValidade(''); setDescricao(''); setCategoria('comida')
       fetchMyDonations()
-    } else { showToast('Erro ao cadastrar: ' + error.message, 'error') }
+      
+      // 🌟 NOVO: Notificar parceiros conectados
+      const { data: parceiros } = await supabase
+        .from('conexoes')
+        .select('orfanato_id, profiles!conexoes_orfanato_id_fkey(nome)')
+        .eq('estabelecimento_id', user?.id)
+        .eq('status', 'ativo')
+      
+      if (parceiros && parceiros.length > 0) {
+        const notificacoes = parceiros.map((p: any) => ({
+          user_id: p.orfanato_id,
+          mensagem: `🌟 Seu parceiro ${userName} acabou de cadastrar: "${titulo}" (${quantidade}). Corra antes que acabe!`,
+          lida: false
+        }))
+        
+        await supabase.from('notificacoes').insert(notificacoes)
+      }
+    } else { 
+      showToast('Erro ao cadastrar: ' + error.message, 'error') 
+    }
   }
 
   async function handleReserveDonation(doacaoId: number) {
